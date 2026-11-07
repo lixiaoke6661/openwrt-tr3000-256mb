@@ -4,28 +4,9 @@ Date: Fri, 16 Jan 2026 14:28:47 +0800
 Subject: [PATCH] arm64: dts: mt7981: add mtkhnat driver support
 
 ---
- arch/arm64/boot/dts/mediatek/mt7981-rfb.dts | 7 +++++++
- arch/arm64/boot/dts/mediatek/mt7981b.dtsi   | 9 +++++++++
- 2 files changed, 16 insertions(+)
+ arch/arm64/boot/dts/mediatek/mt7981b.dtsi | 9 +++++++++
+ 1 file changed, 9 insertions(+)
 
-diff --git a/arch/arm64/boot/dts/mediatek/mt7981-rfb.dts b/arch/arm64/boot/dts/mediatek/mt7981-rfb.dts
-index 8fba575..ccf1c87 100644
---- a/arch/arm64/boot/dts/mediatek/mt7981-rfb.dts
-+++ b/arch/arm64/boot/dts/mediatek/mt7981-rfb.dts
-@@ -121,6 +121,13 @@ gmac1: mac@1 {
- 	};
- };
- 
-+&hnat {
-+	mtketh-wan = "eth1";
-+	mtketh-lan = "lan";
-+	mtketh-max-gmac = <2>;
-+	status = "okay";
-+};
-+
- &i2c0 {
- 	pinctrl-names = "default";
- 	pinctrl-0 = <&i2c0_1_pins>;
 diff --git a/arch/arm64/boot/dts/mediatek/mt7981b.dtsi b/arch/arm64/boot/dts/mediatek/mt7981b.dtsi
 index e53b62a..b9eed64 100644
 --- a/arch/arm64/boot/dts/mediatek/mt7981b.dtsi

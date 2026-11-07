@@ -142,11 +142,10 @@ Subject: [PATCH] net: ethernet: mtk_eth_soc: add mtkhnat driver support
  
  	mtk_eth_debugfs_init(eth);
  
-@@ -7672,6 +7710,8 @@ err_deinit_ppe:
+@@ -7672,5 +7710,7 @@ err_deinit_ppe:
 +#if !defined(CONFIG_NET_MEDIATEK_HNAT) && !defined(CONFIG_NET_MEDIATEK_HNAT_MODULE)
  	mtk_ppe_deinit(eth);
 +#endif
- 	mtk_release_all_muxes(eth);
  	mtk_mdio_cleanup(eth);
  err_free_dev:
  	mtk_free_dev(eth);
