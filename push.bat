@@ -11,12 +11,15 @@ git commit -m "OpenWrt 25.12.6 for TR3000 256MB"
 git branch -M main
 git remote remove origin 2>nul
 git remote add origin https://github.com/lixiaoke6661/openwrt-tr3000-256mb.git
+set http_proxy=
+set https_proxy=
+set all_proxy=
 echo.
 echo When prompted:
 echo   Username: lixiaoke6661
 echo   Password: your Personal Access Token (repo scope), NOT your account password
 echo.
-git push -u origin main
+git -c http.proxy= -c https.proxy= push -u origin main
 echo.
 echo Done. Press any key to close.
 pause >nul
