@@ -52,15 +52,7 @@ jobs:
              target/linux/mediatek/patches-6.12/
           echo "CONFIG_NET_MEDIATEK_HNAT=y" >> target/linux/mediatek/filogic/config-6.12
           echo "CONFIG_MEDIATEK_NETSYS_V2=y" >> target/linux/mediatek/filogic/config-6.12
-          cat >> target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi <<'EOF'
-
-&hnat {
-	mtketh-wan = "eth0";
-	mtketh-lan = "lan";
-	mtketh-max-gmac = <2>;
-	status = "okay";
-};
-EOF
+          printf '\n&hnat {\n\tmtketh-wan = "eth0";\n\tmtketh-lan = "lan";\n\tmtketh-max-gmac = <2>;\n\tstatus = "okay";\n};\n' >> target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
 
       - name: Update feeds
         run: |
