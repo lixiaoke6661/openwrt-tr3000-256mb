@@ -39,6 +39,29 @@ jobs:
           cd openwrt
           git log -1 --format='%H %s'
 
+      - name: Apply HNAT support
+        run: |
+          cd openwrt
+          mkdir -p target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat
+          cp "$GITHUB_WORKSPACE"/patches/hnat/*.c \
+             "$GITHUB_WORKSPACE"/patches/hnat/*.h \
+             "$GITHUB_WORKSPACE"/patches/hnat/Makefile \
+             target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat/
+          cp "$GITHUB_WORKSPACE"/patches/hnat/999-eth-91-*.patch \
+             "$GITHUB_WORKSPACE"/patches/hnat/999-dts-mt7981-*.patch \
+             target/linux/mediatek/patches-6.12/
+          echo "CONFIG_NET_MEDIATEK_HNAT=y" >> target/linux/mediatek/filogic/config-6.12
+          echo "CONFIG_MEDIATEK_NETSYS_V2=y" >> target/linux/mediatek/filogic/config-6.12
+          cat >> target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi <<'EOF'
+
+&hnat {
+	mtketh-wan = "eth0";
+	mtketh-lan = "lan";
+	mtketh-max-gmac = <2>;
+	status = "okay";
+};
+EOF
+
       - name: Update feeds
         run: |
           cd openwrt
