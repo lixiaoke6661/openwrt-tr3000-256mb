@@ -14,12 +14,14 @@ git remote add origin https://github.com/lixiaoke6661/openwrt-tr3000-256mb.git
 set http_proxy=
 set https_proxy=
 set all_proxy=
+git config --global --unset http.proxy 2>nul
+git config --global --unset https.proxy 2>nul
 echo.
 echo When prompted:
 echo   Username: lixiaoke6661
 echo   Password: your Personal Access Token (repo scope), NOT your account password
 echo.
-git -c http.proxy= -c https.proxy= push -u origin main
+git push -u origin main
 echo.
 echo Done. Press any key to close.
 pause >nul
