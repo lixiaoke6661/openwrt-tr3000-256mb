@@ -1,6 +1,9 @@
 name: Build OpenWrt for Cudy TR3000 256MB
 
 on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
   workflow_dispatch:
     inputs:
       ref:
@@ -26,6 +29,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      REF: ${{ inputs.ref || 'v25.12.6' }}
+      MODE: ${{ inputs.mode || 'full' }}
     timeout-minutes: 360
     steps:
       - name: Checkout
@@ -47,7 +53,7 @@ jobs:
 
       - name: Clone OpenWrt
         run: |
-          git clone --depth 1 --branch "${{ inputs.ref }}" https://github.com/openwrt/openwrt.git openwrt
+          git clone --depth 1 --branch "${{ env.REF }}" https://github.com/openwrt/openwrt.git openwrt
           cd openwrt
           git log -1 --format='%H %s'
 
@@ -60,9 +66,9 @@ jobs:
             openwrt/staging_dir
             openwrt/build_dir/host
             openwrt/build_dir/toolchain-*
-          key: owrt-${{ inputs.ref }}-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}
+          key: owrt-${{ env.REF }}-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}
           restore-keys: |
-            owrt-${{ inputs.ref }}-
+            owrt-${{ env.REF }}-
 
       - name: Update feeds
         run: |
@@ -87,7 +93,7 @@ jobs:
         run: cd openwrt && make -j$(nproc) toolchain/install V=s
 
       - name: Build (kernel only)
-        if: inputs.mode == 'kernel'
+        if: env.MODE == 'kernel'
         run: |
           cd openwrt
           make -j$(nproc) target/linux/compile V=s
@@ -95,7 +101,7 @@ jobs:
           find build_dir/target-*/linux-*/linux-* -name "*.o" | wc -l
 
       - name: Build (full)
-        if: inputs.mode == 'full'
+        if: env.MODE == 'full'
         run: cd openwrt && make -j$(nproc) V=s
 
       - name: Save build cache
@@ -110,7 +116,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Collect artifacts
-        if: inputs.mode == 'full' && success()
+        if: env.MODE == 'full' && success()
         run: |
           cd openwrt
           mkdir -p "$GITHUB_WORKSPACE/out"
@@ -123,9 +129,9 @@ jobs:
           ls -lh
 
       - name: Upload
-        if: inputs.mode == 'full' && success()
+        if: env.MODE == 'full' && success()
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-${{ inputs.ref }}-tr3000-256mb
+          name: openwrt-${{ env.REF }}-tr3000-256mb
           path: out/
           retention-days: 14
