@@ -66,9 +66,9 @@ jobs:
             openwrt/staging_dir
             openwrt/build_dir/host
             openwrt/build_dir/toolchain-*
-          key: owrt-${{ env.REF }}-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}
+          key: owrt-${{ inputs.ref || 'v25.12.6' }}-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}
           restore-keys: |
-            owrt-${{ env.REF }}-
+            owrt-${{ inputs.ref || 'v25.12.6' }}-
 
       - name: Update feeds
         run: |
@@ -132,6 +132,6 @@ jobs:
         if: env.MODE == 'full' && success()
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-${{ env.REF }}-tr3000-256mb
+          name: openwrt-${{ inputs.ref || 'v25.12.6' }}-tr3000-256mb
           path: out/
           retention-days: 14
