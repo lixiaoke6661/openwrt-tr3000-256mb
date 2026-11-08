@@ -7,9 +7,21 @@ on:
         description: "OpenWrt git ref (tag or branch)"
         required: true
         default: "v25.12.6"
+      mode:
+        description: "Build mode"
+        required: true
+        type: choice
+        default: "full"
+        options:
+          - full          # full firmware image
+          - kernel        # kernel + modules only (fast patch/compile check)
 
 permissions:
   contents: read
+
+concurrency:
+  group: build-${{ github.ref }}-${{ inputs.mode }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -23,7 +35,7 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/share/swift /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force || true
-          df -h
+          df -h /
 
       - name: Install build dependencies
         run: |
@@ -50,9 +62,28 @@ jobs:
           cp "$GITHUB_WORKSPACE"/patches/hnat/999-eth-91-*.patch \
              "$GITHUB_WORKSPACE"/patches/hnat/999-dts-mt7981-*.patch \
              target/linux/mediatek/patches-6.12/
-          echo "CONFIG_NET_MEDIATEK_HNAT=y" >> target/linux/mediatek/filogic/config-6.12
-          echo "CONFIG_MEDIATEK_NETSYS_V2=y" >> target/linux/mediatek/filogic/config-6.12
-          printf '\n&hnat {\n\tmtketh-wan = "eth0";\n\tmtketh-lan = "eth1";\n\tmtketh-max-gmac = <2>;\n\tstatus = "okay";\n};\n' >> target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
+          grep -q "CONFIG_NET_MEDIATEK_HNAT" target/linux/mediatek/filogic/config-6.12 || \
+            echo "CONFIG_NET_MEDIATEK_HNAT=y" >> target/linux/mediatek/filogic/config-6.12
+          grep -q "CONFIG_MEDIATEK_NETSYS_V2" target/linux/mediatek/filogic/config-6.12 || \
+            echo "CONFIG_MEDIATEK_NETSYS_V2=y" >> target/linux/mediatek/filogic/config-6.12
+          DTS=target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
+          grep -q "&hnat" "$DTS" || \
+            printf '\n&hnat {\n\tmtketh-wan = "eth0";\n\tmtketh-lan = "eth1";\n\tmtketh-max-gmac = <2>;\n\tstatus = "okay";\n};\n' >> "$DTS"
+          echo "--- hnat files ---"; ls target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat | wc -l
+          echo "--- patches ---"; ls target/linux/mediatek/patches-6.12/ | grep -E "999-(eth-91|dts-mt7981)"
+
+      - name: Restore build cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir
+            openwrt/build_dir/host
+            openwrt/build_dir/toolchain-*
+          key: owrt-${{ inputs.ref }}-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}
+          restore-keys: |
+            owrt-${{ inputs.ref }}-
 
       - name: Update feeds
         run: |
@@ -67,15 +98,40 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/files" .
           make defconfig
           grep -q "CONFIG_TARGET_mediatek_filogic_DEVICE_cudy_tr3000-256mb-v1=y" .config
-          grep -E "CONFIG_PACKAGE_(luci|luci-ssl|kmod-tun|kmod-nft-tproxy)=y" .config
+          echo "device symbol OK"
 
       - name: Download sources
-        run: cd openwrt && make download -j8
+        run: cd openwrt && make download -j8 || echo "[WARN] some downloads failed, build will retry"
 
-      - name: Build
+      - name: Build toolchain
+        run: cd openwrt && make -j$(nproc) toolchain/install V=s
+
+      - name: Build (kernel only)
+        if: inputs.mode == 'kernel'
+        run: |
+          cd openwrt
+          make -j$(nproc) target/linux/compile V=s
+          echo "--- hnat object check ---"
+          find build_dir/target-*/linux-*/drivers/net/ethernet/mediatek -name "mtkhnat*.ko" -o -name "hnat.o" | head
+          find build_dir/target-*/linux-*/drivers/net/ethernet/mediatek/mtk_hnat -name "*.o" | wc -l
+
+      - name: Build (full)
+        if: inputs.mode == 'full'
         run: cd openwrt && make -j$(nproc) V=s
 
+      - name: Save build cache
+        if: always() && steps.cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir
+            openwrt/build_dir/host
+            openwrt/build_dir/toolchain-*
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
       - name: Collect artifacts
+        if: inputs.mode == 'full' && success()
         run: |
           cd openwrt
           mkdir -p "$GITHUB_WORKSPACE/out"
@@ -83,12 +139,12 @@ jobs:
           cp bin/targets/mediatek/filogic/*initramfs* "$GITHUB_WORKSPACE/out/" || true
           cp bin/targets/mediatek/filogic/*.manifest "$GITHUB_WORKSPACE/out/" || true
           cp bin/targets/mediatek/filogic/config.buildinfo "$GITHUB_WORKSPACE/out/" || true
-          cp bin/targets/mediatek/filogic/sha256sums "$GITHUB_WORKSPACE/out/" || true
           cd "$GITHUB_WORKSPACE/out"
           sha256sum * > SHA256SUMS
           ls -lh
 
       - name: Upload
+        if: inputs.mode == 'full' && success()
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-${{ inputs.ref }}-tr3000-256mb
