@@ -20,7 +20,7 @@ on:
           - kernel        # kernel + modules only (fast patch/compile check)
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-${{ github.ref }}-${{ inputs.mode }}
@@ -135,3 +135,21 @@ jobs:
           name: openwrt-${{ inputs.ref || 'v25.12.6' }}-tr3000-256mb
           path: out/
           retention-days: 14
+
+      - name: Publish release
+        if: env.MODE == 'full' && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: TR3000-256MB ${{ inputs.ref || 'v25.12.6' }} build.${{ github.run_number }}
+          body: |
+            自动构建产物（GitHub Actions）
+
+            - 目标: Cudy TR3000 256MB v1 (MT7981)
+            - OpenWrt: ${{ inputs.ref || 'v25.12.6' }}
+            - 提交: ${{ github.sha }}
+            - 特性: wpad-openssl (802.11r/k/v + WPA3) / BBR / 软件 flow offloading
+            - 不含 HNAT（官方内核缺 flow-offload API）
+          files: out/*
+          draft: false
+          prerelease: false
