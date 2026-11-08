@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}-${{ inputs.mode }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
