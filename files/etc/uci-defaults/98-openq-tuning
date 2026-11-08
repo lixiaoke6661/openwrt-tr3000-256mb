@@ -1,0 +1,34 @@
+#!/bin/sh
+# OpenQ 首启调优：BBR + fq +（HNAT 未接管时）RPS/XPS + 中断绑核
+# 只跑一次，OpenWrt 执行后会自动删除本脚本
+
+# ---- 1. BBR 拥塞控制 + fq 队列 + conntrack 上限 ----
+modprobe tcp_bbr 2>/dev/null
+for kv in "net.core.default_qdisc=fq" \
+          "net.ipv4.tcp_congestion_control=bbr" \
+          "net.netfilter.nf_conntrack_max=32768"; do
+    key="${kv%%=*}"
+    grep -q "^${key}=" /etc/sysctl.conf 2>/dev/null || echo "$kv" >> /etc/sysctl.conf
+    sysctl -w "$kv" >/dev/null 2>&1
+done
+
+# ---- 2. RPS/XPS：HNAT 生效时跳过（包不进协议栈，分流无意义）----
+if ! lsmod 2>/dev/null | grep -q hnat; then
+    for q in /sys/class/net/eth*/queues/rx-*/rps_cpus \
+             /sys/class/net/eth*/queues/tx-*/xps_cpus; do
+        [ -w "$q" ] && echo 3 > "$q" 2>/dev/null
+    done
+    [ -w /sys/net/core/rps_sock_flow_entries ] && echo 32768 > /sys/net/core/rps_sock_flow_entries 2>/dev/null
+    for f in /sys/class/net/eth*/queues/rx-*/rps_flow_cnt; do
+        [ -w "$f" ] && echo 4096 > "$f" 2>/dev/null
+    done
+fi
+
+# ---- 3. 把 eth / hnat 相关中断绑到 CPU1，CPU0 留给协议栈与用户态 ----
+for n in $(awk '/mtk|eth|hnat/ {gsub(":","",$1); print $1}' /proc/interrupts 2>/dev/null | sort -u); do
+    if [ -w "/proc/irq/$n/smp_affinity_list" ]; then
+        echo 1 > "/proc/irq/$n/smp_affinity_list" 2>/dev/null
+    fi
+done
+
+exit 0

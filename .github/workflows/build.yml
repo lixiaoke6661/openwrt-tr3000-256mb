@@ -51,27 +51,6 @@ jobs:
           cd openwrt
           git log -1 --format='%H %s'
 
-      - name: Apply HNAT support
-        run: |
-          cd openwrt
-          mkdir -p target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat
-          cp "$GITHUB_WORKSPACE"/patches/hnat/*.c \
-             "$GITHUB_WORKSPACE"/patches/hnat/*.h \
-             "$GITHUB_WORKSPACE"/patches/hnat/Makefile \
-             target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat/
-          cp "$GITHUB_WORKSPACE"/patches/hnat/999-eth-91-*.patch \
-             "$GITHUB_WORKSPACE"/patches/hnat/999-dts-mt7981-*.patch \
-             target/linux/mediatek/patches-6.12/
-          grep -q "CONFIG_NET_MEDIATEK_HNAT" target/linux/mediatek/filogic/config-6.12 || \
-            echo "CONFIG_NET_MEDIATEK_HNAT=y" >> target/linux/mediatek/filogic/config-6.12
-          grep -q "CONFIG_MEDIATEK_NETSYS_V2" target/linux/mediatek/filogic/config-6.12 || \
-            echo "CONFIG_MEDIATEK_NETSYS_V2=y" >> target/linux/mediatek/filogic/config-6.12
-          DTS=target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
-          grep -q "&hnat" "$DTS" || \
-            printf '\n&hnat {\n\tmtketh-wan = "eth0";\n\tmtketh-lan = "eth1";\n\tmtketh-max-gmac = <2>;\n\tstatus = "okay";\n};\n' >> "$DTS"
-          echo "--- hnat files ---"; ls target/linux/mediatek/files-6.12/drivers/net/ethernet/mediatek/mtk_hnat | wc -l
-          echo "--- patches ---"; ls target/linux/mediatek/patches-6.12/ | grep -E "999-(eth-91|dts-mt7981)"
-
       - name: Restore build cache
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -96,6 +75,7 @@ jobs:
           cd openwrt
           cp "$GITHUB_WORKSPACE/configs/cudy_tr3000-256mb-v1.config" .config
           cp -r "$GITHUB_WORKSPACE/files" .
+          chmod +x files/etc/uci-defaults/* 2>/dev/null || true
           make defconfig
           grep -q "CONFIG_TARGET_mediatek_filogic_DEVICE_cudy_tr3000-256mb-v1=y" .config
           echo "device symbol OK"
@@ -111,9 +91,8 @@ jobs:
         run: |
           cd openwrt
           make -j$(nproc) target/linux/compile V=s
-          echo "--- hnat object check ---"
-          find build_dir/target-*/linux-*/drivers/net/ethernet/mediatek -name "mtkhnat*.ko" -o -name "hnat.o" | head
-          find build_dir/target-*/linux-*/drivers/net/ethernet/mediatek/mtk_hnat -name "*.o" | wc -l
+          echo "--- kernel object check ---"
+          find build_dir/target-*/linux-*/linux-* -name "*.o" | wc -l
 
       - name: Build (full)
         if: inputs.mode == 'full'
