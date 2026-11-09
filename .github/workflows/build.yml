@@ -95,12 +95,31 @@ jobs:
           make defconfig
           grep -q "CONFIG_TARGET_mediatek_filogic_DEVICE_cudy_tr3000-256mb-v1=y" .config
           echo "device symbol OK"
+          # glib2 的 meson 会自动探测 libelf，与 elfutils 并行构建产生竞态
+          # （ld: cannot find staging_dir/.../usr/lib/libelf.so）。上游 master 已改为 disabled，
+          # openwrt-25.12 分支尚未同步，这里本地补齐。
+          GLIB_MK=package/feeds/packages/glib2/Makefile
+          if grep -q 'libelf=disabled' "$GLIB_MK"; then
+            echo "glib2: libelf 已禁用，无需修改"
+          else
+            sed -i '/^COMP_ARGS:=$/a COMP_ARGS+=-Dlibelf=disabled' "$GLIB_MK"
+            grep -q 'libelf=disabled' "$GLIB_MK"
+            echo "glib2: 注入 -Dlibelf=disabled 完成"
+          fi
 
       - name: Download sources
         run: cd openwrt && make download -j8 || echo "[WARN] some downloads failed, build will retry"
 
       - name: Build toolchain
         run: cd openwrt && make -j$(nproc) toolchain/install V=s
+
+      # 缓存恢复的 staging_dir 可能残留 libelf.pc 而缺 libelf.so，先单独铺好 elfutils，
+      # 避免其他包与 elfutils 并行构建时链接到半成品 staging。
+      - name: Prewarm elfutils
+        run: |
+          cd openwrt
+          make -j$(nproc) package/libs/elfutils/compile V=s
+          ls -l staging_dir/target-*/usr/lib/libelf.so
 
       - name: Build (kernel only)
         if: env.MODE == 'kernel'
