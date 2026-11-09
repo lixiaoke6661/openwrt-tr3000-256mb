@@ -1,0 +1,111 @@
+#!/bin/sh
+# router-mode — 一键切换旁路由 / 主路由网络预设
+#
+#   router-mode side     旁路由：192.168.5.1，网关/DNS 指向主路由 192.168.1.1，关闭 DHCP
+#   router-mode main     主路由：192.168.1.1，清空网关/DNS，开启 DHCP
+#   router-mode status   查看当前模式
+#   router-mode <mode> -n  只改配置不重启网络（下次重启生效）
+#
+# 切换后本机 IP 会变，SSH/浏览器需换新地址重连。
+
+set -e
+
+SIDE_IP='192.168.5.1'
+MAIN_IP='192.168.1.1'
+UPSTREAM='192.168.1.1'
+NETMASK='255.255.255.0'
+
+usage() {
+	cat <<'EOF'
+用法: router-mode <side|main|status> [-n]
+
+  side    旁路由：192.168.5.1 / 网关 192.168.1.1 / DHCP 关闭
+  main    主路由：192.168.1.1 / 无网关 / DHCP 开启
+  status  显示当前模式
+  -n      不改动运行中的网络（仅写配置，重启后生效）
+EOF
+	exit 1
+}
+
+current_mode() {
+	local ip
+	ip=$(uci -q get network.lan.ipaddr) || ip=''
+	case "$ip" in
+		"$SIDE_IP") echo side ;;
+		"$MAIN_IP") echo main ;;
+		*) echo "custom($ip)" ;;
+	esac
+}
+
+show_status() {
+	echo "mode:     $(current_mode)"
+	echo "lan.ip:   $(uci -q get network.lan.ipaddr || echo '-')"
+	echo "lan.gw:   $(uci -q get network.lan.gateway || echo '-')"
+	echo "lan.dns:  $(uci -q get network.lan.dns || echo '-')"
+	echo "dhcp:     ignore=$(uci -q get dhcp.lan.ignore || echo '-')"
+	echo "wan:      $(uci -q get network.wan.proto || echo none)"
+}
+
+apply() {
+	local mode=$1
+	case "$mode" in
+	side)
+		uci -q set network.lan.ipaddr="$SIDE_IP"
+		uci -q set network.lan.netmask="$NETMASK"
+		uci -q set network.lan.gateway="$UPSTREAM"
+		uci -q set network.lan.dns="$UPSTREAM"
+		uci -q set dhcp.lan.ignore='1'
+		;;
+	main)
+		uci -q set network.lan.ipaddr="$MAIN_IP"
+		uci -q set network.lan.netmask="$NETMASK"
+		uci -q delete network.lan.gateway 2>/dev/null || true
+		uci -q delete network.lan.dns 2>/dev/null || true
+		uci -q set dhcp.lan.ignore='0'
+		;;
+	*)
+		usage
+		;;
+	esac
+
+	uci -q commit network
+	uci -q commit dhcp
+
+	logger -t router-mode "switched to $mode" 2>/dev/null || true
+}
+
+MODE=''
+RESTART=1
+for arg in "$@"; do
+	case "$arg" in
+		-n) RESTART=0 ;;
+		-h|--help) usage ;;
+		*) MODE=$arg ;;
+	esac
+done
+
+[ -n "$MODE" ] || usage
+
+case "$MODE" in
+status)
+	show_status
+	exit 0
+	;;
+esac
+
+old=$(current_mode)
+apply "$MODE"
+
+echo "mode: $old -> $MODE"
+echo "lan:  $(uci -q get network.lan.ipaddr) / $NETMASK"
+echo "gw:   $(uci -q get network.lan.gateway || echo '-')"
+echo "dhcp: ignore=$(uci -q get dhcp.lan.ignore || echo '-')"
+
+if [ "$RESTART" = "1" ]; then
+	echo
+	echo "正在重启网络，若通过 SSH/浏览器连接，请改用 $(uci -q get network.lan.ipaddr) 重连"
+	( sleep 1; /etc/init.d/network restart; /etc/init.d/dnsmasq restart ) >/dev/null 2>&1 &
+else
+	echo
+	echo "已写入配置，未重启网络（-n）"
+fi

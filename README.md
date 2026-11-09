@@ -48,19 +48,31 @@ uci commit ttyd
 /etc/init.d/ttyd enable && /etc/init.d/ttyd start
 ```
 
-## Switch to main-router mode
+## Side-router / main-router mode
+
+The image boots in **side-router** mode: `192.168.5.1`, gateway/DNS `192.168.1.1`, DHCP off.
+Switch with the bundled helper:
+
+```sh
+router-mode status          # show current preset
+router-mode main            # 192.168.1.1, no gateway, DHCP on
+router-mode side            # back to 192.168.5.1, DHCP off
+router-mode main -n         # write config only, apply on next reboot
+```
+
+The LAN IP changes immediately, so reconnect on the new address. Then configure WAN
+(PPPoE/DHCP) in LuCI -> Network -> Interfaces.
+
+Manual equivalent:
 
 ```sh
 uci set network.lan.ipaddr='192.168.1.1'
-uci set network.lan.gateway=''
-uci set network.lan.dns=''
+uci delete network.lan.gateway
+uci delete network.lan.dns
 uci set dhcp.lan.ignore='0'
 uci commit
-/etc/init.d/network restart
-/etc/init.d/dnsmasq restart
+/etc/init.d/network restart && /etc/init.d/dnsmasq restart
 ```
-
-Then configure WAN (PPPoE/DHCP) in LuCI -> Network -> Interfaces.
 
 ## What is included
 
@@ -69,6 +81,7 @@ Then configure WAN (PPPoE/DHCP) in LuCI -> Network -> Interfaces.
 - PPPoE / IPv6 protocol support
 - `kmod-tun`, `kmod-nft-tproxy`, `ip-full` (side-router/proxy building blocks)
 - `curl`, `openssh-sftp-server`
+- `router-mode` helper for side-router / main-router switching
 
 ## Security notes
 
