@@ -43,6 +43,15 @@ jobs:
           sudo docker image prune --all --force || true
           df -h /
 
+      - name: Setup swap
+        run: |
+          sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "--- memory ---"; free -h
+          echo "--- disk ---"; df -h /
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -102,7 +111,23 @@ jobs:
 
       - name: Build (full)
         if: env.MODE == 'full'
-        run: cd openwrt && make -j$(nproc) V=s
+        run: |
+          cd openwrt
+          set -o pipefail
+          make -j$(nproc) V=s 2>&1 | tee /tmp/build.log
+
+      - name: Diagnose failure
+        if: failure()
+        run: |
+          {
+            echo "### 失败诊断"
+            echo '```'
+            echo "--- memory ---"; free -h
+            echo "--- disk ---"; df -h /
+            echo "--- OOM / kernel messages ---"; sudo dmesg | tail -40 || true
+            echo "--- build log tail ---"; tail -60 /tmp/build.log 2>/dev/null || echo "(无 build.log)"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Save build cache
         if: always() && steps.cache-restore.outputs.cache-hit != 'true'
