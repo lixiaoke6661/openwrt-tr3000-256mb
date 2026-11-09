@@ -1,0 +1,18 @@
+# 构建产物与本地状态（不入库）
+out/
+.ci-state.json
+*.bad
+*.new
+
+# 本地工具/脚本
+build-full.sh
+build-openq.sh
+build.bat
+run-all.sh
+run-kernel.sh
+status.sh
+patch-tools.py
+fixup-hnat.py
+
+# 工作区数据
+.workbuddy/

@@ -1,0 +1,30 @@
+#!/bin/sh
+# 安全默认值（首启执行一次，执行后本脚本自动删除）
+
+# ---- 1. 关闭 ttyd ----
+# 上游 ttyd 默认配置没有 credential，网页终端直连 /bin/login；
+# 配合空密码 root 等于局域网无认证 root shell。默认关闭，需要时再启用：
+#   uci set ttyd.@ttyd[0].credential='user:pass'
+#   uci set ttyd.@ttyd[0].enable='1'
+#   uci commit ttyd && /etc/init.d/ttyd enable && /etc/init.d/ttyd start
+if [ -f /etc/config/ttyd ]; then
+	uci -q set ttyd.@ttyd[0].enable='0'
+	uci -q commit ttyd
+fi
+/etc/init.d/ttyd stop 2>/dev/null
+/etc/init.d/ttyd disable 2>/dev/null
+
+# ---- 2. 只信任官方包签名 ----
+# /etc/apk/keys/public-key.pem 是构建机（GitHub Runner）生成的本地签名公钥，
+# 由 base-files install-key 写入。官方镜像不含此文件，删除后仍可用 openwrt-25.12.pem
+# 校验 downloads.openwrt.org 的包。
+[ -f /etc/apk/keys/public-key.pem ] && rm -f /etc/apk/keys/public-key.pem
+
+# ---- 3. 默认 root 口令 ----
+# 空密码时设为 TR3000@256mb（SHA-512 crypt）。首次登录后请立刻修改：
+#   passwd
+if grep -q '^root::' /etc/shadow 2>/dev/null; then
+	sed -i 's|^root::|root:$6$tr3k256$gp0g.T2LJoVJXAXqmLVn.BzZd6RiBjZpep2dGgnN4Om5LuCu.k/I0reya77jVOPgz./jZx1I6WD5XFedRNKmq/|' /etc/shadow
+fi
+
+exit 0
