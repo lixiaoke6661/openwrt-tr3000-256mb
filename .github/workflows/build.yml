@@ -44,11 +44,12 @@ jobs:
           df -h /
 
       - name: Setup swap
+        continue-on-error: true
         run: |
-          sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=4096 status=none || true
+          sudo chmod 600 /mnt/swapfile || true
+          sudo mkswap /mnt/swapfile || true
+          sudo swapon /mnt/swapfile || echo "[WARN] swapon 失败，继续无 swap 构建"
           echo "--- memory ---"; free -h
           echo "--- disk ---"; df -h /
 
