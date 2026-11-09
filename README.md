@@ -36,7 +36,17 @@ confirm LAN/WiFi works, then run sysupgrade.
 ## First boot
 
 - LAN: `192.168.5.1` (preset as side-router), DHCP disabled.
-- Root password is preset to `TR3000@256mb`. **Change it immediately**: LuCI -> System -> Administration, or `passwd`.
+- A **random 16-character root password** is generated on first boot and written to
+  `/root/.root-initial-password` (mode 600). Log in with it over SSH/console, then
+  **change it immediately** and delete that file:
+
+```sh
+cat /root/.root-initial-password
+passwd
+rm -f /root/.root-initial-password
+```
+
+  No usable password is baked into the image or this repository.
 - Web terminal (ttyd, port 7681) is **disabled by default** — upstream ships it without
   a credential, which combined with an empty-password root is an unauthenticated root shell
   on the LAN. To re-enable it, set a credential first:
@@ -90,8 +100,9 @@ uci commit
 - Actions are official (`actions/checkout@v4`, `actions/upload-artifact@v4`).
 - Artifacts include `SHA256SUMS`, `config.buildinfo`, and `.manifest` for audit.
 - Userland is byte-identical to the official `25.12.6` image for this profile (only `wpad` differs, by design).
-- First boot (`files/etc/uci-defaults/95-secure-defaults`): disables ttyd, sets a default root
-  password, and removes `/etc/apk/keys/public-key.pem` — the build runner's local package-signing
+- First boot (`files/etc/uci-defaults/95-secure-defaults`): disables ttyd, generates a **random**
+  root password (stored on-device only, never in the image), and removes
+  `/etc/apk/keys/public-key.pem` — the build runner's local package-signing
   key that `base-files` installs on non-buildbot builds. Only the official
   `openwrt-25.12.pem` trust anchor is kept.
 - Images are **not** cryptographically signed (same as official OpenWrt sysupgrade images);
